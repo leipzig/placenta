@@ -1,3 +1,7 @@
+# Reproducing Leiby et al "Lack of detection of a human placenta microbiome in samples from preterm and term deliveries"
+https://doi.org/10.1186/s40168-018-0575-4
+
+
 Fetch sequence data and metadata
 ```
 mkdir metadata
@@ -22,3 +26,9 @@ conda create -n qiime1 python=2.7 qiime matplotlib=1.4.3 mock nose -c conda-forg
 conda activate qiime1
 ```
 
+DADA2 for 16s
+```
+#this conflicts too much with qiime1 to share an environment
+conda create -n dada bioconductor-dada2
+source activate dada
+```
