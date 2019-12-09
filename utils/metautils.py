@@ -1,16 +1,18 @@
 import pandas
 import os
+import sys
 
 #different readlengths for trimmomatic outputs
 READLENGTHS = [36,75]
 
 #from utils import metautils
-#metautils.srpMeta('SRP051599')
+#metautils.srpMeta('SRP141397')
 #study_accession            experiment_accession            sample_accession            run_accession            experiment_title            experiment_attribute            taxon_id            library_selection            library_layout            library_strategy            library_source            library_name            bases            spots            adapter_spec            avg_read_length
 #      SRP141397                      SRX3980107                  SRS3205258                SRR7049033                S78_shotgun                                                   0                       RANDOM                  PAIRED -                         WGS               METAGENOMIC             S78_shotgun        229716627          1009555                                 227.54245880610765
 
 
 #read in an SPR metadata
+
 class srpMeta():
     def __init__(self,SRP):
         self.srp=SRP
@@ -18,8 +20,8 @@ class srpMeta():
         #['NA06984.1.M_111124_4_1.fastq.gz', 'NA06984.1.M_111124_4_2.fastq.gz', 
 
         # split into 16s and shotgun sequences
-        self.st["subject"] = self.st["experiment_title"].str.split("_", n = 0, expand = True)
-        self.st["experimental_strategy"] = self.st["experiment_title"].str.split("_", n = 1, expand = True)
+        self.st["subject"] = self.st["experiment_title"].str.split("_", expand = True)[0]
+        self.st["experimental_strategy"] = self.st["experiment_title"].str.split("_", expand = True)[1]
         
         self.ALL_BNAMES = [os.path.basename(f) for f in self.getFilesFromRunList(self.populationRuns('ALL'))]
 
@@ -33,6 +35,15 @@ class srpMeta():
 
     def getSRRs(self):
         return(self.st['run_accession'].tolist())
+
+    def get16SFiles(self):
+        files=[]
+        filesofinterest=self.st[self.st['experimental_strategy']=='16S']
+        for pair in ["1","2"]:
+            #'study_accession','experiment_accession','run_accession'
+            filesofinterest["pair"+pair]="raw/"+filesofinterest['study_accession']+"/"+filesofinterest['experiment_accession']+"/"+filesofinterest['run_accession']+"_"+pair+".fastq"
+        files=list(filesofinterest['pair1'].astype(str))+list(+filesofinterest['pair2'].astype(str))
+        return(files)
 
     def getFilesFromRunList(self,runs):
         files=[]
@@ -249,3 +260,5 @@ class srpMeta():
                 biosamp_lengthList.append("trimmed_75nt/"+item +"/"+item + ".rmats")
         return(biosamp_lengthList)
 
+if __name__== "__main__":
+    srpMeta(sys.argv[1]).get16SFiles()

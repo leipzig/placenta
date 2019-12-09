@@ -32,3 +32,5 @@ DADA2 for 16s
 conda create -n dada bioconductor-dada2
 source activate dada
 ```
+
+https://benjjneb.github.io/dada2/tutorial.html
