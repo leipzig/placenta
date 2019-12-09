@@ -11,7 +11,7 @@ wget -c https://starbuck1.s3.amazonaws.com/sradb/SRAmetadb.sqlite.gz && gunzip S
 pysradb metadata --db ./SRAmetadb.sqlite SRP141397 --detailed --expand --saveto metadata/SRP141397.metadata;  done
 #this is reentrant - very cool
 mkdir -p raw
-pysradb download --db ./SRAmetadb.sqlite --out-dir ./raw -p SRP141397;  done
+pysradb download --db ./SRAmetadb.sqlite --out-dir ./raw -p SRP141397
 ```
 
 Fetch supplemental tables
