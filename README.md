@@ -13,12 +13,13 @@ conda config --add channels conda-forge
 
 Fetch sequence data and metadata
 ```
-conda create -n sra pysradb
+conda create -n sra
+conda install -c bioconda pysradb
 conda activate sra
 mkdir metadata
 wget -c https://starbuck1.s3.amazonaws.com/sradb/SRAmetadb.sqlite.gz && gunzip SRAmetadb.sqlite.gz
 #if you dont use saveto its space delimited
-pysradb metadata --db ./SRAmetadb.sqlite SRP141397 --detailed --expand --saveto metadata/SRP141397.metadata;  done
+pysradb metadata --db ./SRAmetadb.sqlite SRP141397 --detailed --expand --saveto metadata/SRP141397.metadata
 #this is reentrant - very cool
 mkdir -p raw
 pysradb download --db ./SRAmetadb.sqlite --out-dir ./raw -p SRP141397
