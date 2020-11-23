@@ -10,6 +10,9 @@ READLENGTHS = [36,75]
 #study_accession            experiment_accession            sample_accession            run_accession            experiment_title            experiment_attribute            taxon_id            library_selection            library_layout            library_strategy            library_source            library_name            bases            spots            adapter_spec            avg_read_length
 #      SRP141397                      SRX3980107                  SRS3205258                SRR7049033                S78_shotgun                                                   0                       RANDOM                  PAIRED -                         WGS               METAGENOMIC             S78_shotgun        229716627          1009555                                 227.54245880610765
 
+	
+#study_accession    experiment_accession                experiment_title  experiment_desc   organism_taxid    organism_name     library_strategy  library_source    library_selection                   sample_accession  sample_title      instrument        total_spots       total_size        run_accession     run_total_spots   run_total_bases   run_alias         sra_url_alt1      sra_url_alt2      sra_url           experiment_alias  isolation_source  collection_date   geo_loc_name      lat_lon           ref_biomaterial   BioSampleModel    host              ena_fastq_url_1   ena_fastq_url_2   ena_fastq_ftp_1   ena_fastq_ftp_2   full1             full2             pair1             pair2             
+#SRP141397          SRX3980708                          MP74_16S          MP74_16S          256318            metagenome        AMPLICON          METAGENOMIC       PCR                                 SRS3205645        N/A               Illumina MiSeq    550               257302            SRR7049034        550               276100            MP74_2.fastq.gz   https://storage.googleapis.com/sra-pub-src-4/SRR7049034/MP74_2.fastq.gz https://sra-pub-src-4.s3.amazonaws.com/SRR7049034/MP74_2.fastq.gz       https://sra-downloadb.st-va.ncbi.nlm.nih.gov/sos1/sra-pub-run-14/SRR7049034/SRR7049034.1  N/A               N/A               25-Oct-2017       USA:Philadelphia  39.95 N 75.16 W   MP74              Metagenome or environmental         Homo sapiens      http://ftp.sra.ebi.ac.uk/vol1/fastq/SRR704/004/SRR7049034/SRR7049034_1.fastq.gz           http://ftp.sra.ebi.ac.uk/vol1/fastq/SRR704/004/SRR7049034/SRR7049034_2.fastq.gz           era-fasp@fasp.sra.ebi.ac.uk:vol1/fastq/SRR704/004/SRR7049034/SRR7049034_1.fastq.gz        era-fasp@fasp.sra.ebi.ac.uk:vol1/fastq/SRR704/004/SRR7049034/SRR7049034_2.fastq.gz        raw/SRP141397/SRX3980708/SRR7049034_1.fastq           raw/SRP141397/SRX3980708/SRR7049034_2.fastq           sratofastq/SRR7049034_1.fastq.gz    sratofastq/SRR7049034_2.fastq.gz
 
 #read in an SPR metadata
 
@@ -18,7 +21,8 @@ class srpMeta():
         self.srp=SRP
         self.st = pandas.read_csv("metadata/"+SRP+".metadata",sep="\t")
         #['NA06984.1.M_111124_4_1.fastq.gz', 'NA06984.1.M_111124_4_2.fastq.gz', 
-
+    
+    def process(self):
         # split into 16s and shotgun sequences
         self.st["subject"] = self.st["experiment_title"].str.split("_", expand = True)[0]
         self.st["experimental_strategy"] = self.st["experiment_title"].str.split("_", expand = True)[1]
@@ -36,24 +40,58 @@ class srpMeta():
     def getSRRs(self):
         return(self.st['run_accession'].tolist())
 
-    def get16SFiles(self):
+    def get16SFiles(self,flatten=True,compress=True):
+        """
+        flatten - all files go in top directory vs SRP/EXP/SRR
+        compress - .gz suffix
+        """
         files=[]
-        filesofinterest=self.st[self.st['experimental_strategy']=='16S']
+        filesofinterest=self.st[self.st['experimental_strategy']=='16S'].copy()
         for pair in ["1","2"]:
             #'study_accession','experiment_accession','run_accession'
-            filesofinterest["pair"+pair]="raw/"+filesofinterest['study_accession']+"/"+filesofinterest['experiment_accession']+"/"+filesofinterest['run_accession']+"_"+pair+".fastq"
+            if flatten:
+                filesofinterest["pair"+pair]="fastq/"+filesofinterest['run_accession']+"_"+pair+".fastq"
+            else:
+                filesofinterest["pair"+pair]="fastq/"+filesofinterest['study_accession']+"/"+filesofinterest['experiment_accession']+"/"+filesofinterest['run_accession']+"_"+pair+".fastq"
+            if compress:
+                filesofinterest["pair"+pair]+='.gz'
         files=list(filesofinterest['pair1'].astype(str))+list(+filesofinterest['pair2'].astype(str))
         return(files)
 
+    def getFiltered16SFiles(self):
+        """
+        dada output
+        """
+        files=[]
+        filesofinterest=self.st[self.st['experimental_strategy']=='16S'].copy()
+        for pair in ["F","R"]:
+            filesofinterest["pair"+pair]="filtered/"+filesofinterest['experiment_title']+"_"+pair+"_filt.fastq.gz"
+        files=list(filesofinterest['pairF'].astype(str))+list(+filesofinterest['pairR'].astype(str))
+        return(files)
+
+    def getFastaFiles(self):
+        """
+        dada output, in fasta
+        """
+        files=[]
+        filesofinterest=self.st[self.st['experimental_strategy']=='16S'].copy()
+        for pair in ["F","R"]:
+            filesofinterest["pair"+pair]="fasta/"+filesofinterest['experiment_title']+"_"+pair+"_filt.fasta.gz"
+        files=list(filesofinterest['pairF'].astype(str))+list(+filesofinterest['pairR'].astype(str))
+        return(files)
+        
     def getFilesFromRunList(self,runs):
         files=[]
         
         for run in runs:
-            layout=self.st.loc[self.st['run_accession']==run]['library_layout']
-            if layout.to_string(index=False).lstrip().startswith('PAIRED'):
-                files+=[self.srp+"/fastq/"+run+"_1.fastq.gz",self.srp+"/fastq/"+run+"_2.fastq.gz"]
+            if 'library_layout' in self.st.columns:
+                layout=self.st.loc[self.st['run_accession']==run]['library_layout']
+                if layout.to_string(index=False).lstrip().startswith('PAIRED'):
+                    files+=[self.srp+"/fastq/"+run+"_1.fastq.gz",self.srp+"/fastq/"+run+"_2.fastq.gz"]
+                else:
+                    files+=[self.srp+"/fastq/"+run+"_1.fastq.gz"]
             else:
-                files+=[self.srp+"/fastq/"+run+"_1.fastq.gz"]
+                files+=[self.srp+"/fastq/"+run+"_1.fastq.gz",self.srp+"/fastq/"+run+"_2.fastq.gz"]
         return(files)
 
     

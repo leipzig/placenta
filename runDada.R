@@ -1,12 +1,15 @@
 library(dada2)
 library(dplyr)
 library(assertthat)
-
+library(stringr)
+library(readxl)
 #https://benjjneb.github.io/dada2/tutorial.html
 
 read.table("metadata/SRP141397.metadata",sep="\t",header = TRUE) %>%
-  dplyr::filter(str_detect(library_name,'16S')) %>% dplyr::mutate(pair1=paste0(paste("raw",study_accession,experiment_accession,run_accession,sep="/"),"_1.fastq")) %>%
-  dplyr::filter(str_detect(library_name,'16S')) %>% dplyr::mutate(pair2=paste0(paste("raw",study_accession,experiment_accession,run_accession,sep="/"),"_2.fastq")) ->
+  dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(full1=paste0(paste("raw",study_accession,experiment_accession,run_accession,sep="/"),"_1.fastq")) %>%
+  dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(full2=paste0(paste("raw",study_accession,experiment_accession,run_accession,sep="/"),"_2.fastq")) %>%
+  dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(pair1=paste0(paste("sratofastq",run_accession,sep="/"),"_1.fastq.gz")) %>%
+  dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(pair2=paste0(paste("sratofastq",run_accession,sep="/"),"_2.fastq.gz"))->
   sra_metadata
 
 sapply(sra_metadata$pair1,function(x){assert_that(file.exists(x))})
@@ -15,7 +18,7 @@ sapply(sra_metadata$pair2,function(x){assert_that(file.exists(x))})
 fnFs <- sra_metadata$pair1
 fnRs <- sra_metadata$pair2
 
-sample.names <- sra_metadata$library_name
+sample.names <- sra_metadata$experiment_title
 
 plotQualityProfile(fnFs[1:2])
 
@@ -26,6 +29,10 @@ filtFs <- file.path("filtered", paste0(sample.names, "_F_filt.fastq.gz"))
 filtRs <- file.path("filtered", paste0(sample.names, "_R_filt.fastq.gz"))
 names(filtFs) <- sample.names
 names(filtRs) <- sample.names
+
+
+#Sequence data was processed using DADA2 [42]. Reads were trimmed from 251 bases to 240. Dereplication, error modeling, denoising, pair merging, and chimera removal were performed using default parameters.
+
 
 # dada2 `filterAndTrim` parameters
 #truncQ	
@@ -73,3 +80,29 @@ errR <- learnErrors(filtRs, multithread=TRUE)
 
 dadaFs <- dada(filtFs, err=errF, multithread=TRUE)
 dadaRs <- dada(filtRs, err=errR, multithread=TRUE)
+
+#merge overlapping pairs?
+mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
+
+#construct sequence table
+seqtab <- makeSequenceTable(mergers)
+taxa <- assignTaxonomy(seqtab, "SILVA_DADA/silva_nr_v123_train_set.fa.gz", multithread=TRUE)
+
+
+#remove chimeras
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
+
+
+#assign taxonomy to nochim
+taxaNochim <- assignTaxonomy(seqtab.nochim, "SILVA_DADA/silva_nr_v123_train_set.fa.gz", multithread=TRUE)
+
+#this has experimental 
+tabl11<-read_excel("metadata/table1.xls",sheet = 11)
+tabl11$SampleID<-str_replace(tabl11$SampleID,'16S GeneBlock','POS.control')
+
+trseqtabdf<-as.data.frame(trseqtab)
+trseqtabdf$seq<-row.names(trseqtabdf)
+taxadf<-as.data.frame(taxa)
+taxadf$seq<-row.names(taxadf)
+trseqtabdf %>% merge(taxadf,by="seq") %>% group_by(Genus) %>% select(-c(seq,Kingdom,Phylum,Class,Order,Family)) %>% summarize_all(sum) -> genusCnts
+
