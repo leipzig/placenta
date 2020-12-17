@@ -3,6 +3,8 @@ library(dplyr)
 library(assertthat)
 library(stringr)
 library(readxl)
+library(ggplot2)
+library(ggbeeswarm)
 #https://benjjneb.github.io/dada2/tutorial.html
 
 read.table("metadata/SRP141397.metadata",sep="\t",header = TRUE) %>%
@@ -98,11 +100,45 @@ taxaNochim <- assignTaxonomy(seqtab.nochim, "SILVA_DADA/silva_nr_v123_train_set.
 
 #this has experimental 
 tabl11<-read_excel("metadata/table1.xls",sheet = 11)
-tabl11$SampleID<-str_replace(tabl11$SampleID,'16S GeneBlock','POS.control')
+names(tabl11)<-c("SampleID","Group","Type","Case_Control","Delivery","numReads","nonhost_shotgun_reads")
+tabl11$SampleID<-str_replace(tabl11$SampleID,'16S GeneBlock ','POS.control')
 
-trseqtabdf<-as.data.frame(trseqtab)
-trseqtabdf$seq<-row.names(trseqtabdf)
+trseqtabdfnoseq<-as.data.frame(trseqtab)
+abundance<-as.data.frame(colSums(trseqtabdfnoseq))
+abundance$sample<-str_replace(row.names(abundance),'_16S','')
+names(abundance)<-c("dadareads","SampleID")
+abundance<-merge(abundance,tabl11,by="SampleID")
+abundanceMelted<-reshape2::melt(abundance)
+
+trseqtabdf$seq<-row.names(trseqtabdfnoseq)
 taxadf<-as.data.frame(taxa)
 taxadf$seq<-row.names(taxadf)
-trseqtabdf %>% merge(taxadf,by="seq") %>% group_by(Genus) %>% select(-c(seq,Kingdom,Phylum,Class,Order,Family)) %>% summarize_all(sum) -> genusCnts
+trseqtabdf %>% merge(taxadf,by="seq") %>% group_by(Phylum,Genus) %>% select(-c(seq,Kingdom,Class,Order,Family)) %>% summarize_all(sum) -> genusCnts
+
+genusCntsNrml<-data.frame(Phylum=genusCnts$Phylum,Genus=genusCnts$Genus,sweep(genusCnts[,-c(1,2)], 2, colSums(genusCnts[,-c(1,2)]), FUN ="/" ))
+colnames(genusCntsNrml)<-str_replace(colnames(genusCntsNrml),'_16S','')
+library(ComplexHeatmap)
+library(circlize)
+col_fun = colorRamp2(c(0, 0.01, .3, 1), c("white", "blue", "green", "red"))
+col_fun(seq(0, 1))
+
+
+keepRows<-rowSums(genusCntsNrml[,-c(1,2)],na.rm = TRUE)>0.001
+subset(genusCntsNrml,keepRows)->genusCntsNrmlAboveThreshold
+cols<-sample(1:nrow(tabl11),50)
+colnames(genusCntsNrmlAboveThreshold[cols])
+
+Type<-tabl11[match(colnames(genusCntsNrmlAboveThreshold[cols]),tabl11$SampleID),"Type"]
+Delivery<-tabl11[match(colnames(genusCntsNrmlAboveThreshold[cols]),tabl11$SampleID),"Delivery"]
+
+ha = HeatmapAnnotation(Type = Type, Delivery=Delivery,annotation_name_side = "left")
+Heatmap(as.matrix(genusCntsNrmlAboveThreshold[,cols]),
+        col=col_fun,
+        top_annotation = ha,
+        cluster_columns = FALSE,
+        cluster_rows = FALSE,
+        show_row_dend = FALSE) +
+  Heatmap(genusCntsNrmlAboveThreshold[,"Phylum"], name = "Phylum", 
+          top_annotation = HeatmapAnnotation(summary = anno_summary(height = unit(2, "cm"))),
+          width = unit(15, "mm"))
 
