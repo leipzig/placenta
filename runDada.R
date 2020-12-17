@@ -125,8 +125,7 @@ col_fun(seq(0, 1))
 
 keepRows<-rowSums(genusCntsNrml[,-c(1,2)],na.rm = TRUE)>0.001
 subset(genusCntsNrml,keepRows)->genusCntsNrmlAboveThreshold
-cols<-sample(1:nrow(tabl11),50)
-colnames(genusCntsNrmlAboveThreshold[cols])
+cols<-tabl11[sort(sample(1:nrow(tabl11),50)),"SampleID"]
 
 Type<-tabl11[match(colnames(genusCntsNrmlAboveThreshold[cols]),tabl11$SampleID),"Type"]
 Delivery<-tabl11[match(colnames(genusCntsNrmlAboveThreshold[cols]),tabl11$SampleID),"Delivery"]
