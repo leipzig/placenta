@@ -5,13 +5,18 @@ library(stringr)
 library(readxl)
 library(ggplot2)
 library(ggbeeswarm)
+library(ComplexHeatmap)
+library(circlize)
+library(phyloseq)
+library(phangorn)
+library(msa)
 #https://benjjneb.github.io/dada2/tutorial.html
 
 read.table("metadata/SRP141397.metadata",sep="\t",header = TRUE) %>%
   dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(full1=paste0(paste("raw",study_accession,experiment_accession,run_accession,sep="/"),"_1.fastq")) %>%
   dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(full2=paste0(paste("raw",study_accession,experiment_accession,run_accession,sep="/"),"_2.fastq")) %>%
-  dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(pair1=paste0(paste("sratofastq",run_accession,sep="/"),"_1.fastq.gz")) %>%
-  dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(pair2=paste0(paste("sratofastq",run_accession,sep="/"),"_2.fastq.gz"))->
+  dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(pair1=paste0(paste("fastq",run_accession,sep="/"),"_1.fastq.gz")) %>%
+  dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(pair2=paste0(paste("fastq",run_accession,sep="/"),"_2.fastq.gz"))->
   sra_metadata
 
 sapply(sra_metadata$pair1,function(x){assert_that(file.exists(x))})
@@ -87,50 +92,68 @@ dadaRs <- dada(filtRs, err=errR, multithread=TRUE)
 mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
 
 #construct sequence table
-seqtab <- makeSequenceTable(mergers)
+seqtab.chim <- makeSequenceTable(mergers)
+
+#remove chimeras
+seqtab.nochim <- removeBimeraDenovo(seqtab.chim, method="consensus", multithread=TRUE, verbose=TRUE)
+
+noChimeras<-TRUE
+if(noChimeras){
+  seqtab<-seqtab.nochim
+}else{
+  seqtab<-seqtab.chim
+}
+
+trseqtab<-t(seqtab)
+#assign taxonomy to nochim
 taxa <- assignTaxonomy(seqtab, "SILVA_DADA/silva_nr_v123_train_set.fa.gz", multithread=TRUE)
 
 
-#remove chimeras
-seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
+
+trseqtabdfnoseq<-as.data.frame(trseqtab)
+trseqtabdf$seq<-row.names(trseqtabdfnoseq)
+abundance<-as.data.frame(colSums(trseqtabdfnoseq))
 
 
-#assign taxonomy to nochim
-taxaNochim <- assignTaxonomy(seqtab.nochim, "SILVA_DADA/silva_nr_v123_train_set.fa.gz", multithread=TRUE)
-
-#this has experimental 
+#this has experimental metadata
 tabl11<-read_excel("metadata/table1.xls",sheet = 11)
 names(tabl11)<-c("SampleID","Group","Type","Case_Control","Delivery","numReads","nonhost_shotgun_reads")
 tabl11$SampleID<-str_replace(tabl11$SampleID,'16S GeneBlock ','POS.control')
+tabl11$Type<-factor(tabl11$Type,levels=c("Air Swab","Blank","H2O","Placenta Fetal Side Delivery Biopsy","Placenta Maternal Side Delivery Biopsy","Positive Control (Gene Block)","Positive Control (Shotgun))","Maternal Saliva Microbiome Enrollment","Vaginal Swab Microbiome Enrollment"))
+tabl11$Case_Control<-factor(tabl11$Case_Control,levels=c("Preterm","Term","n/a"))
+tabl11$Delivery<-factor(tabl11$Delivery,levels=c("SVD","C-Section","n/a"))
+tabl11 %>% arrange(Type,Case_Control,Delivery)->meta.sorted
 
-trseqtabdfnoseq<-as.data.frame(trseqtab)
-abundance<-as.data.frame(colSums(trseqtabdfnoseq))
 abundance$sample<-str_replace(row.names(abundance),'_16S','')
 names(abundance)<-c("dadareads","SampleID")
-abundance<-merge(abundance,tabl11,by="SampleID")
+abundance<-merge(abundance,meta.sorted,by="SampleID")
 abundanceMelted<-reshape2::melt(abundance)
+ggplot(abundanceMelted,aes(Type,value))+geom_beeswarm()+theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+facet_wrap("variable")
 
-trseqtabdf$seq<-row.names(trseqtabdfnoseq)
+
 taxadf<-as.data.frame(taxa)
 taxadf$seq<-row.names(taxadf)
 trseqtabdf %>% merge(taxadf,by="seq") %>% group_by(Phylum,Genus) %>% select(-c(seq,Kingdom,Class,Order,Family)) %>% summarize_all(sum) -> genusCnts
 
 genusCntsNrml<-data.frame(Phylum=genusCnts$Phylum,Genus=genusCnts$Genus,sweep(genusCnts[,-c(1,2)], 2, colSums(genusCnts[,-c(1,2)]), FUN ="/" ))
 colnames(genusCntsNrml)<-str_replace(colnames(genusCntsNrml),'_16S','')
-library(ComplexHeatmap)
-library(circlize)
-col_fun = colorRamp2(c(0, 0.01, .3, 1), c("white", "blue", "green", "red"))
-col_fun(seq(0, 1))
+
+
 
 
 keepRows<-rowSums(genusCntsNrml[,-c(1,2)],na.rm = TRUE)>0.001
 subset(genusCntsNrml,keepRows)->genusCntsNrmlAboveThreshold
-cols<-tabl11[sort(sample(1:nrow(tabl11),50)),"SampleID"]
+cols<-meta.sorted[sort(sample(1:nrow(meta.sorted),50)),"SampleID"] %>% dplyr::pull('SampleID')
 
-Type<-tabl11[match(colnames(genusCntsNrmlAboveThreshold[cols]),tabl11$SampleID),"Type"]
-Delivery<-tabl11[match(colnames(genusCntsNrmlAboveThreshold[cols]),tabl11$SampleID),"Delivery"]
 
-ha = HeatmapAnnotation(Type = Type, Delivery=Delivery,annotation_name_side = "left")
+Type<-meta.sorted[match(colnames(genusCntsNrmlAboveThreshold[cols]),meta.sorted$SampleID),"Type"]  %>% dplyr::pull('Type')
+Delivery<-meta.sorted[match(colnames(genusCntsNrmlAboveThreshold[cols]),meta.sorted$SampleID),"Delivery"] %>% dplyr::pull('Delivery')
+Term<-meta.sorted[match(colnames(genusCntsNrmlAboveThreshold[cols]),meta.sorted$SampleID),"Case_Control"] %>% dplyr::pull('Case_Control')
+
+set.seed(3)
+col_fun = colorRamp2(c(0, 0.01, .3, 1), c("white", "blue", "green", "red"))
+col_fun(seq(0, 1))
+ha = HeatmapAnnotation(Type = Type, Delivery=Delivery,Term=Term,annotation_name_side = "left")
 Heatmap(as.matrix(genusCntsNrmlAboveThreshold[,cols]),
         col=col_fun,
         top_annotation = ha,
@@ -141,3 +164,87 @@ Heatmap(as.matrix(genusCntsNrmlAboveThreshold[,cols]),
           top_annotation = HeatmapAnnotation(summary = anno_summary(height = unit(2, "cm"))),
           width = unit(15, "mm"))
 
+meta.sorted.inseq<-data.frame(meta.sorted[meta.sorted$SampleID %in% row.names(seqtab),])
+rownames(meta.sorted.inseq)<-meta.sorted.inseq$SampleID
+meta.sorted.inseq %>% select(-c(SampleID,numReads,nonhost_shotgun_reads)) -> meta.sorted.inseq.samp
+rownames(seqtab)<-str_replace(rownames(seqtab),'_16S','')
+
+ps <- phyloseq(otu_table(seqtab, taxa_are_rows=FALSE), 
+               sample_data(meta.sorted.inseq.samp), 
+               tax_table(taxa))
+
+
+
+#seqs <- dada2::getSequences(seqtab)
+#names(seqs) <- seqs # This propagates to the tip labels of the tree
+#mult <- msa::msa(seqs, method="ClustalW", type="dna", order="input")
+#save(mult,file="16s.msa")
+
+#https://github.com/benjjneb/dada2/issues/88
+library(DECIPHER)
+dseqs<-DNAStringSet(seqs)
+#about an hour
+#2762+45+273+568+31+125+599
+alignment <- AlignSeqs(dseqs, anchor=NA)
+save(alignment,file="decipher.msa")
+#https://compbiocore.github.io/metagenomics-workshop/assets/DADA2_tutorial.html
+
+#Construct Phylogenetic Tree
+#Extract sequences from DADA2 output
+
+sequences<-getSequences(seqtab.nochim)
+names(sequences)<-sequences
+# Run Sequence Alignment (MSA) using DECIPHER
+
+alignment <- AlignSeqs(DNAStringSet(sequences), anchor=NA)
+# Change sequence alignment output into a phyDat structure
+
+phang.align <- phangorn::phyDat(as(alignment, "matrix"), type="DNA")
+#Create distance matrix
+
+dm <- phangorn::dist.ml(phang.align)
+
+#Perform Neighbor joining, 20 minutes
+
+treeNJ <- phangorn::NJ(dm) # Note, tip order != sequence order
+
+#Internal maximum likelihood
+
+fit = pml(treeNJ, data=phang.align)
+negative edges length changed to 0!
+  
+  fitGTR <- update(fit, k=4, inv=0.2)
+fitGTR <- optim.pml(fitGTR, model="GTR", optInv=TRUE, optGamma=TRUE,
+                    rearrangement = "stochastic", control = pml.control(trace = 0))
+alignment <- read.dna("alignment.fasta",format="fasta",as.matrix=TRUE)
+alignment.rax.gtr <- raxml(alignment,
+                           m="GTRGAMMAIX", # model
+                           f="a", # best tree and bootstrap
+                           p=1234, # random number seed
+                           x=2345, # random seed for rapid bootstrapping
+                           N=100, # number of bootstrap replicates
+                           file="alignment", # name of output files
+                           exec="raxmlHPC-PTHREADS-SSE3", # name of executable
+                           threads=20
+)
+
+#https://f1000research.com/articles/5-1492/v1
+phang.align <- as.phyDat(mult, type="DNA", names=getSequence(seqtab))
+dm <- dist.ml(phang.align)
+treeNJ <- NJ(dm) # Note, tip order != sequence order
+fit = pml(treeNJ, data=phang.align)
+
+## negative edges length changed to 0!
+
+#fitGTR <- update(fit, k=4, inv=0.2)
+#fitGTR <- optim.pml(fitGTR, model="GTR", optInv=TRUE, optGamma=TRUE,
+     #               rearrangement = "stochastic", control = pml.control(trace = 0))
+
+
+
+
+
+
+
+#pslog <- transform_sample_counts(ps, function(x) log(1 + x))
+#out.wuf.log <- ordinate(pslog, method = "MDS", distance = "unifrac")
