@@ -50,9 +50,9 @@ class srpMeta():
         for pair in ["1","2"]:
             #'study_accession','experiment_accession','run_accession'
             if flatten:
-                filesofinterest["pair"+pair]="fastq/"+filesofinterest['run_accession']+"_"+pair+".fastq"
+                filesofinterest["pair"+pair]="intermediates/fastq/"+filesofinterest['run_accession']+"_"+pair+".fastq"
             else:
-                filesofinterest["pair"+pair]="fastq/"+filesofinterest['study_accession']+"/"+filesofinterest['experiment_accession']+"/"+filesofinterest['run_accession']+"_"+pair+".fastq"
+                filesofinterest["pair"+pair]="intermediates/fastq/"+filesofinterest['study_accession']+"/"+filesofinterest['experiment_accession']+"/"+filesofinterest['run_accession']+"_"+pair+".fastq"
             if compress:
                 filesofinterest["pair"+pair]+='.gz'
         files=list(filesofinterest['pair1'].astype(str))+list(+filesofinterest['pair2'].astype(str))
@@ -65,7 +65,7 @@ class srpMeta():
         files=[]
         filesofinterest=self.st[self.st['experimental_strategy']=='16S'].copy()
         for pair in ["F","R"]:
-            filesofinterest["pair"+pair]="filtered/"+filesofinterest['experiment_title']+"_"+pair+"_filt.fastq.gz"
+            filesofinterest["pair"+pair]="intermediates/filtered/"+filesofinterest['experiment_title']+"_"+pair+"_filt.fastq.gz"
         files=list(filesofinterest['pairF'].astype(str))+list(+filesofinterest['pairR'].astype(str))
         return(files)
 
@@ -76,10 +76,17 @@ class srpMeta():
         files=[]
         filesofinterest=self.st[self.st['experimental_strategy']=='16S'].copy()
         for pair in ["F","R"]:
-            filesofinterest["pair"+pair]="fasta/"+filesofinterest['experiment_title']+"_"+pair+"_filt.fasta.gz"
+            filesofinterest["pair"+pair]="intermediates/fasta/"+filesofinterest['experiment_title']+"_"+pair+"_filt.fasta.gz"
         files=list(filesofinterest['pairF'].astype(str))+list(+filesofinterest['pairR'].astype(str))
         return(files)
-        
+
+    def getQiimeReady(self):
+        files=[]
+        filesofinterest=self.st[self.st['experimental_strategy']=='16S'].copy()
+        filesofinterest['filename']="intermediates/qiime_ready/"+filesofinterest['experiment_title']+".fa"
+        files=list(filesofinterest['filename'].astype(str))
+        return(files)
+    
     def getFilesFromRunList(self,runs):
         files=[]
         

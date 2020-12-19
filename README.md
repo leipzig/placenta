@@ -11,11 +11,20 @@ conda config --add channels bioconda
 conda config --add channels conda-forge
 ```
 
+Environment setup
+```
+conda create -n placenta
+conda activate placenta
+conda config --add channels defaults
+conda config --add channels bioconda
+conda config --add channels conda-forge
+conda install -y mamba
+mamba install -y snakemake pysradb bioconductor-dada2 r-dplyr parallel-fastq-dump
+```
+
 Fetch sequence data and metadata
 ```
-conda create -n sra
-conda install -c bioconda pysradb
-conda activate sra
+conda activate placenta
 mkdir metadata
 pysradb metadata --db  --detailed --expand --saveto metadata/SRP141397.metadata
 
@@ -26,7 +35,6 @@ pysradb download  --out-dir ./raw -p SRP141397
 
 # sra2fastq
 ```
-conda install -y parallel-fastq-dump
 parallel-fastq-dump --threads 4 --outdir sratofastq/ --split-files --tmpdir /tmp --gzip -s `find raw/ -name "*sra"`
 ```
 (Need 12GB)
@@ -37,10 +45,16 @@ curl https://static-content.springer.com/esm/art%3A10.1186%2Fs40168-018-0575-4/M
 curl https://static-content.springer.com/esm/art%3A10.1186%2Fs40168-018-0575-4/MediaObjects/40168_2018_575_MOESM2_ESM.pdf > metadata/table2.pdf
 ```
 
-Make qiime environment
+Make qiime environment and install qiime-related stuff
 ```
-conda create -n qiime1 python=2.7 qiime matplotlib=1.4.3 mock nose -c conda-forge -c bioconda -c anaconda
-conda activate qiime1
+conda create -n qiime1env python=2.7
+conda config --add channels defaults
+conda config --add channels bioconda
+conda config --add channels conda-forge
+conda config --add channels anaconda
+conda activate qiime1env
+conda install -y qiime matplotlib=1.4.3 mock nose
+conda install r-optparse bioconductor-metagenomeseq  r-biom r-plyr r-RJSONIO bioconductor-rhdf5 bioconductor-biomformat
 conda install gxx_linux-64
 pip install --upgrade cython
 pip install biom-format==2.1.4
@@ -49,16 +63,9 @@ gunzip 1.9.1.tar.gz && tar -xvf 1.9.1.tar
 cd qiime-1.9.1 && python setup.py install
 ```
 
-DADA2 for 16s
-```
-#this conflicts too much with qiime1 to share an environment
-conda create -n dada
-conda activate dada
-conda install -c bioconda bioconductor-dada2
-conda install dplyr
-```
 
 ```
+conda activate placenta
 echo "source('~/Documents/dev/placenta/runDada.R')" | R --no-save --vanilla
 ```
 

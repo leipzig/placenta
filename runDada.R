@@ -15,8 +15,8 @@ library(msa)
 read.table("metadata/SRP141397.metadata",sep="\t",header = TRUE) %>%
   dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(full1=paste0(paste("raw",study_accession,experiment_accession,run_accession,sep="/"),"_1.fastq")) %>%
   dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(full2=paste0(paste("raw",study_accession,experiment_accession,run_accession,sep="/"),"_2.fastq")) %>%
-  dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(pair1=paste0(paste("fastq",run_accession,sep="/"),"_1.fastq.gz")) %>%
-  dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(pair2=paste0(paste("fastq",run_accession,sep="/"),"_2.fastq.gz"))->
+  dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(pair1=paste0(paste("intermediates","fastq",run_accession,sep="/"),"_1.fastq.gz")) %>%
+  dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(pair2=paste0(paste("intermediates","fastq",run_accession,sep="/"),"_2.fastq.gz"))->
   sra_metadata
 
 sapply(sra_metadata$pair1,function(x){assert_that(file.exists(x))})
@@ -31,9 +31,9 @@ plotQualityProfile(fnFs[1:2])
 
 plotQualityProfile(fnRs[1:2])
 
-# Place filtered files in filtered/ subdirectory
-filtFs <- file.path("filtered", paste0(sample.names, "_F_filt.fastq.gz"))
-filtRs <- file.path("filtered", paste0(sample.names, "_R_filt.fastq.gz"))
+# Place intermediates/filtered files in intermediates/filtered/ subdirectory
+filtFs <- file.path("intermediates/filtered", paste0(sample.names, "_F_filt.fastq.gz"))
+filtRs <- file.path("intermediates/filtered", paste0(sample.names, "_R_filt.fastq.gz"))
 names(filtFs) <- sample.names
 names(filtRs) <- sample.names
 
@@ -124,6 +124,20 @@ tabl11$Case_Control<-factor(tabl11$Case_Control,levels=c("Preterm","Term","n/a")
 tabl11$Delivery<-factor(tabl11$Delivery,levels=c("SVD","C-Section","n/a"))
 tabl11 %>% arrange(Type,Case_Control,Delivery)->meta.sorted
 
+#useful for qiime
+meta.sorted %>% 
+  mutate(Type=str_replace_all(pattern = '\\(',replacement='',Type)) %>%
+  mutate(Type=str_replace_all(pattern = '\\)',replacement='',Type)) %>%
+  mutate(Description=paste(Type,Case_Control,Delivery,sep="__"))  %>% 
+  mutate(Description=str_replace_all(pattern = ' ',replacement = '_',string = Description)) %>%
+  mutate(BarcodeSequence="") %>%
+  mutate(LinkerPrimerSequence = "") %>%
+  select(SampleID,BarcodeSequence,LinkerPrimerSequence,Type,Case_Control,Delivery,Description) %>% filter(SampleID != 'Shotgun Positive Control') %>%
+  dplyr::rename("#SampleID"="SampleID") -> qiimetable
+write.table(qiimetable,"intermediates/mapfile.txt",quote=FALSE,sep="\t",row.names=FALSE)
+
+
+
 abundance$sample<-str_replace(row.names(abundance),'_16S','')
 names(abundance)<-c("dadareads","SampleID")
 abundance<-merge(abundance,meta.sorted,by="SampleID")
@@ -211,12 +225,12 @@ treeNJ <- phangorn::NJ(dm) # Note, tip order != sequence order
 #Internal maximum likelihood
 
 fit = pml(treeNJ, data=phang.align)
-negative edges length changed to 0!
+#negative edges length changed to 0!
   
-  fitGTR <- update(fit, k=4, inv=0.2)
-fitGTR <- optim.pml(fitGTR, model="GTR", optInv=TRUE, optGamma=TRUE,
-                    rearrangement = "stochastic", control = pml.control(trace = 0))
-alignment <- read.dna("alignment.fasta",format="fasta",as.matrix=TRUE)
+#  fitGTR <- update(fit, k=4, inv=0.2)
+#fitGTR <- optim.pml(fitGTR, model="GTR", optInv=TRUE, optGamma=TRUE,
+#                    rearrangement = "stochastic", control = pml.control(trace = 0))
+#alignment <- read.dna("alignment.fasta",format="fasta",as.matrix=TRUE)
 alignment.rax.gtr <- raxml(alignment,
                            m="GTRGAMMAIX", # model
                            f="a", # best tree and bootstrap
