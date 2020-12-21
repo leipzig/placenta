@@ -41,7 +41,7 @@ RUN conda config --add channels conda-forge
 
 #main environment
 RUN conda install -y mamba
-RUN mamba install -y snakemake pysradb bioconductor-dada2 r-dplyr parallel-fastq-dump
+RUN mamba install -y snakemake rpy2 pysradb bioconductor-dada2 r-dplyr parallel-fastq-dump
 
 SHELL ["/bin/bash","-c"]
 
@@ -80,7 +80,9 @@ RUN perl -p -i -e  's/axisbg/facecolor/' qiime-1.9.1/qiime/make_2d_plots.py
 
 
 COPY Snakefile .
+COPY config.yaml.template config.yaml
 COPY runDada.R .
+COPY dadaFilterTrim.R .
 COPY utils utils
 COPY metadata metadata
 COPY dependencies dependencies
