@@ -35,7 +35,7 @@ pysradb download  --out-dir ./raw -p SRP141397
 
 # sra2fastq
 ```
-parallel-fastq-dump --threads 4 --outdir sratofastq/ --split-files --tmpdir /tmp --gzip -s `find raw/ -name "*sra"`
+parallel-fastq-dump --threads 4 --outdir intermediates/fastq --split-files --tmpdir /tmp --gzip -s `find raw/ -name "*sra"`
 ```
 (Need 12GB)
 

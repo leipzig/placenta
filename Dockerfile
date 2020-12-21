@@ -14,7 +14,7 @@ ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 ENV PATH /opt/conda/bin:$PATH
 
 RUN apt-get update --fix-missing && \
-    apt-get install -y wget bzip2 ca-certificates curl git && \
+    apt-get install -y wget bzip2 ca-certificates curl git awscli && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -57,10 +57,16 @@ RUN conda install -y mamba
 RUN mamba install -y matplotlib=1.4.3 mock nose
 RUN mamba install -y r-optparse
 RUN mamba install -y bioconductor-metagenomeseq
-RUN mamba install -y r-biom r-plyr r-RJSONIO bioconductor-rhdf5 bioconductor-biomformat
+RUN mamba install -y r-plyr r-RJSONIO
+RUN mamba install -y bioconductor-rhdf5 bioconductor-biomformat
 RUN mamba install -y numpy
+RUN mamba install -y pandas==0.24.2
+RUN mamba install -y scikit-bio==0.2.3
+RUN mamba install -y cogent==1.5.3
 RUN pip install --upgrade cython
 RUN pip install biom-format==2.1.4
+#this had trouble from conda
+#RUN mamba install -y r-biom
 
 
 WORKDIR "/placenta"
@@ -73,15 +79,15 @@ RUN perl -p -i -e  's/axisbg/facecolor/' qiime-1.9.1/scripts/make_2d_plots.py
 RUN perl -p -i -e  's/axisbg/facecolor/' qiime-1.9.1/qiime/make_2d_plots.py
 
 
-
 COPY Snakefile .
 COPY runDada.R .
 COPY utils utils
 COPY metadata metadata
 COPY dependencies dependencies
+RUN R CMD INSTALL dependencies/biom
 
-
-#RUN cd qiime-1.9.1 && cp ../dependencies/uclustq1.2.22_i86linux64 ./scripts/uclust && /opt/conda/envs/qiime1env/bin/python setup.py install
+RUN cd qiime-1.9.1 && cp ../dependencies/uclustq1.2.22_i86linux64 ./scripts/uclust && /opt/conda/envs/qiime1env/bin/python setup.py install
+RUN rm 1.9.1.tar
 
 ENTRYPOINT [ "/usr/bin/tini", "--" ]
-CMD ["conda", "run", "-n", "placenta", "/bin/bash", "-c","snakemake","-npr","get16s"]
+CMD ["conda", "run", "-n", "placenta", "/bin/bash", "-c","snakemake --cores all getQiimeReady"]
