@@ -20,8 +20,9 @@ library("biomformat")
 #./SILVA_119_QIIME_release/97_FastTree_trees/Silva_119_rep_set97_aligned_16S_only_pfiltered.tre
 
 ```{r process}
-ps<-import_biom("intermediates/OTU_SILVA_CLOSED/otu_table_mc2_w_tax.biom",treefilename = "intermediates/OTU_SILVA_CLOSED/rep_set.tre")
-
+ps<-import_biom(BIOMfilename=biom,treefilename = tree)
+#"intermediates/OTU_SILVA_CLOSED/rep_set.tre")
+#"intermediates/OTU_SILVA_CLOSED/otu_table_mc2_w_tax.biom"
 #https://github.com/joey711/phyloseq/issues/436
 data(GlobalPatterns)
 t <- data.frame(tax_table(ps))

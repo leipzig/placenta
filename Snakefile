@@ -69,17 +69,20 @@ rule combine:
 # 2 hours
 # choice of UCLUST or usearch61
 rule OTUopen:
-    input: "seqs.fna"
+    input: "intermediates/seqs.fna"
     output: "intermediates/OTU_SILVA_OPEN/otu_table_mc2_w_tax.biom", "intermediates/OTU_SILVA_OPEN/rep_set.tre"
     shell: """
-           {qiime1env}/bin/pick_open_reference_otus.py   -i intermediates/seqs.fna -r SILVA_119_QIIME_release/rep_set/97/Silva_119_rep_set97.fna -o OTU_SILVA_OPEN  -s 0.1 -m usearch61 -p otu_SILVA_settings.txt
+           export PATH={qiime1env}/bin/:$PATH
+           {qiime1env}/bin/pick_open_reference_otus.py   -i {input} -r SILVA_119_QIIME_release/rep_set/97/Silva_119_rep_set97.fna -o OTU_SILVA_OPEN  -s 0.1 -m usearch61 -p otu_SILVA_settings.txt
            """
 
+#23:01:22
 rule OTUclosed:
-    input: "seqs.fna"
+    input: "intermediates/seqs.fna"
     output: "intermediates/OTU_SILVA_CLOSED/otu_table_mc2_w_tax.biom", "intermediates/OTU_SILVA_CLOSED/rep_set.tre"
     shell: """
-           {qiime1env}/bin/pick_closed_reference_otus.py -i intermediates/seqs.fna -r SILVA_119_QIIME_release/rep_set/97/Silva_119_rep_set97.fna -o OTU_SILVA_CLOSED -p otu_SILVA_settings.txt
+           export PATH={qiime1env}/bin/:$PATH
+           {qiime1env}/bin/pick_closed_reference_otus.py -i {input} -r SILVA_119_QIIME_release/rep_set/97/Silva_119_rep_set97.fna -o OTU_SILVA_CLOSED -p otu_SILVA_settings.txt
            """
 
 rule humanreadableotutable:
@@ -88,6 +91,7 @@ rule humanreadableotutable:
     shell: """
            {qiime1env}/bin/biom convert -i {input} -o {output} --to-tsv --header-key taxonomy
            """
+
 rule phylumtable:
     input: "intermediates/OTU_SILVA_CLOSED/otu_table_mc2_w_tax.biom"
     output: "intermediates/OTU_SILVA_CLOSED/phylum/otu_table_mc2_w_tax_L2.txt"
@@ -125,10 +129,12 @@ rule qiimepca:
             {qiime1env}/bin/principal_coordinates.py -i {input.unifrac} -o {output.unifrac}
             """
 
-phyloseqpca
-    input: 
-    output:
-    run: R("knitr::knit('phyloseq.Rmd')")
+rule phyloseqpca:
+    input: biom="intermediates/OTU_SILVA_CLOSED/otu_table_mc2_w_tax.biom",tree = "intermediates/OTU_SILVA_CLOSED/rep_set.tre"
+    output: "phyloseq.html"
+    run:  
+        R("biom<-'{biom}';tree<-'{tree}';knitr::knit('phyloseq.Rmd',output='{output}')")
+
 #mamba install r-vegan
 #get pvalues for 
 rule comparisons:
