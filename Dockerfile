@@ -41,8 +41,7 @@ RUN conda config --add channels conda-forge
 
 #main environment
 RUN conda install -y mamba
-RUN mamba install -y snakemake rpy2 pysradb bioconductor-dada2 r-dplyr parallel-fastq-dump
-
+RUN mamba install -y r-base==4.0.3 snakemake rpy2 pysradb bioconductor-dada2 r-dplyr parallel-fastq-dump fastx_toolkit
 SHELL ["/bin/bash","-c"]
 
 #qiime1 environment requires Python2.7
@@ -65,7 +64,7 @@ RUN mamba install -y scikit-bio==0.2.3
 RUN mamba install -y cogent==1.5.3
 RUN pip install --upgrade cython
 RUN pip install biom-format==2.1.4
-#this had trouble from conda
+#this had trouble from conda so we install it from source later
 #RUN mamba install -y r-biom
 
 
@@ -91,5 +90,9 @@ RUN R CMD INSTALL dependencies/biom
 RUN cd qiime-1.9.1 && cp ../dependencies/uclustq1.2.22_i86linux64 ./scripts/uclust && /opt/conda/envs/qiime1env/bin/python setup.py install
 RUN rm 1.9.1.tar
 
+RUN chown -R root:staff /placenta
+RUN chmod 775 /placenta
+RUN echo "setwd('/placenta')" > /home/rstudio/.Rprofile
+
 ENTRYPOINT [ "/usr/bin/tini", "--" ]
-CMD ["conda", "run", "-n", "placenta", "/bin/bash", "-c","snakemake --cores all getQiimeReady"]
+CMD ["conda", "run", "-n", "placenta", "/bin/bash", "-c","snakemake --cores all"]

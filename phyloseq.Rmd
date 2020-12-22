@@ -1,0 +1,50 @@
+---
+title: "Phyloseq"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("phyloseq")
+library("ggplot2")
+library("biomformat")
+```
+
+
+#adapted from https://github.com/BikLab/ME_microbiome_2017/blob/80691956fe65fb51221ac25539908c0d5e9a8897/scripts/betadiv-and-filtering/PCoAs-in-R.sh
+#https://joey711.github.io/phyloseq-demo/import-biom-sd-example.html
+#https://github.com/joey711/phyloseq/issues/167
+
+#could use OPEN OTU
+#could also have chosen intermediates/OTU_SILVA/CSS_normalized_otu_table.biom
+#./SILVA_119_QIIME_release/97_FastTree_trees/Silva_119_rep_set97_aligned_16S_only_pfiltered.tre
+
+```{r process}
+ps<-import_biom("intermediates/OTU_SILVA_CLOSED/otu_table_mc2_w_tax.biom",treefilename = "intermediates/OTU_SILVA_CLOSED/rep_set.tre")
+
+#https://github.com/joey711/phyloseq/issues/436
+data(GlobalPatterns)
+t <- data.frame(tax_table(ps))
+colnames(t) <- rank_names(GlobalPatterns)
+tax_table(ps) <- tax_table(as.matrix(t))
+
+#should we use this?
+ps.log <- transform_sample_counts(ps, function(x) log(1 + x))
+
+bmsd <- import_qiime_sample_data("mapfile.txt")
+p0 <- merge_phyloseq(ps, bmsd)
+
+#3 min
+out.uf.log <- ordinate(p0, method = "MDS", distance = "unifrac")
+evals <- out.uf.log$values$Eigenvalues
+```
+
+
+```{r pressure, echo=FALSE}
+plot_ordination(p0, out.uf.log, color = "Type") +
+  labs(col = "Type") +
+  coord_fixed(sqrt(evals[2] / evals[1]))
+```
+
+
+

@@ -32,9 +32,9 @@ rule fetchOrExtractFastq:
 rule getFiltered:
     input: project.get16SFiles(flatten=True,compress=True)
     output: project.getFiltered16SFiles()
-    run: R("""
-           source("dataFilterTrim.R")
-           """)
+    shell: """
+           echo "source('dataFilterTrim.R')" |  R --quiet --no-save
+           """
 
 rule fastq2fasta:
     input: "intermediates/filtered/{file}.fastq.gz"
@@ -44,6 +44,7 @@ rule fastq2fasta:
         gunzip -c {input} | fastq_to_fasta -z -o {output}
         """
 
+#named and sequencially numbered
 rule fasta2qiimedef:
     input: pair1="intermediates/fasta/{code}_16S_F_filt.fasta.gz", pair2="intermediates/fasta/{code}_16S_R_filt.fasta.gz"
     output: "intermediates/qiime_ready/{code}_16S.fa"
@@ -57,39 +58,49 @@ rule getFasta:
 rule getQiimeReady:
     input: project.getQiimeReady()
 
+# concatenate all the sequences into one file, keeping only samples with at least 100 sequences
 rule combine:
     input: project.getQiimeReady()
-    output: "seqs.fna"
-    shell: "cat intermediates/qiime_ready/*fa > intermediates/seqs.fna"
-
+    output: "intermediates/seqs.fna"
+    shell: """
+           for f in intermediates/qiime_ready/*.fa; do cat $f | perl -e 'while(<>){{$lines.=$_;/>/ && $cnt++;}}if($cnt>=100){{print $lines;}}' >> {output}; done
+           """
 
 # 2 hours
-rule OTU:
+# choice of UCLUST or usearch61
+rule OTUopen:
     input: "seqs.fna"
-    output: "intermediates/OTU_SILVA/otu_table_mc2_w_tax.biom"
+    output: "intermediates/OTU_SILVA_OPEN/otu_table_mc2_w_tax.biom", "intermediates/OTU_SILVA_OPEN/rep_set.tre"
     shell: """
-           {qiime1env}/bin/pick_open_reference_otus.py -i intermediates/seqs.fna -r SILVA_119_QIIME_release/rep_set/97/Silva_119_rep_set97.fna -o OTU_SILVA  -s 0.1 -m usearch61 -p params.txt
+           {qiime1env}/bin/pick_open_reference_otus.py   -i intermediates/seqs.fna -r SILVA_119_QIIME_release/rep_set/97/Silva_119_rep_set97.fna -o OTU_SILVA_OPEN  -s 0.1 -m usearch61 -p otu_SILVA_settings.txt
+           """
+
+rule OTUclosed:
+    input: "seqs.fna"
+    output: "intermediates/OTU_SILVA_CLOSED/otu_table_mc2_w_tax.biom", "intermediates/OTU_SILVA_CLOSED/rep_set.tre"
+    shell: """
+           {qiime1env}/bin/pick_closed_reference_otus.py -i intermediates/seqs.fna -r SILVA_119_QIIME_release/rep_set/97/Silva_119_rep_set97.fna -o OTU_SILVA_CLOSED -p otu_SILVA_settings.txt
            """
 
 rule humanreadableotutable:
-    input: "intermediates/OTU_SILVA/otu_table_mc2_w_tax.biom"
-    output: "intermediates/OTU_SILVA/otu_table.txt"
+    input: "intermediates/OTU_SILVA_CLOSED/otu_table_mc2_w_tax.biom"
+    output: "intermediates/OTU_SILVA_CLOSED/otu_table.txt"
     shell: """
            {qiime1env}/bin/biom convert -i {input} -o {output} --to-tsv --header-key taxonomy
            """
 rule phylumtable:
-    input: "intermediates/OTU_SILVA/otu_table_mc2_w_tax.biom"
-    output: "intermediates/OTU_SILVA/phylum/otu_table_mc2_w_tax_L2.txt"
+    input: "intermediates/OTU_SILVA_CLOSED/otu_table_mc2_w_tax.biom"
+    output: "intermediates/OTU_SILVA_CLOSED/phylum/otu_table_mc2_w_tax_L2.txt"
     shell: 
       """
-      {qiime1env}/bin/summarize_taxa.py -i {input} -L 2 -o intermediates/OTU_SILVA/phylum/
+      {qiime1env}/bin/summarize_taxa.py -i {input} -L 2 -o intermediates/OTU_SILVA_CLOSED/phylum/
       """
 
 #conda install  r-optparse bioconductor-metagenomeseq  r-biom r-plyr r-RJSONIO bioconductor-rhdf5 bioconductor-biomformat
 #cd dependencies && git clone git@github.com:joey711/biom.git
 rule normalize:
-    input: "intermediates/OTU_SILVA/otu_table_mc2_w_tax.biom"
-    output: "intermediates/OTU_SILVA/CSS_normalized_otu_table.biom"
+    input: "intermediates/OTU_SILVA_CLOSED/otu_table_mc2_w_tax.biom"
+    output: "intermediates/OTU_SILVA_CLOSED/CSS_normalized_otu_table.biom"
     shell: """
            {qiime1env}/bin/normalize_table.py -i {input} -a CSS -o {output}
            """
@@ -97,44 +108,47 @@ rule normalize:
 #generate distance matrices
 #we can also try this with non-normalized?
 rule diversity:
-    input: otu="intermediates/OTU_SILVA/CSS_normalized_otu_table.biom", repset="intermediates/OTU_SILVA/rep_set.tre"
-    params: beta="intermediates/OTU_SILVA/beta_div"
-    output: "intermediates/OTU_SILVA/beta_div/bray_curtis_CSS_normalized_otu_table.txt", "intermediates/OTU_SILVA/beta_div/unweighted_unifrac_CSS_normalized_otu_table.txt"
+    input: otu="intermediates/OTU_SILVA_CLOSED/CSS_normalized_otu_table.biom", repset="intermediates/OTU_SILVA_CLOSED/rep_set.tre"
+    params: beta="intermediates/OTU_SILVA_CLOSED/beta_div"
+    output: "intermediates/OTU_SILVA_CLOSED/beta_div/bray_curtis_CSS_normalized_otu_table.txt", "intermediates/OTU_SILVA_CLOSED/beta_div/unweighted_unifrac_CSS_normalized_otu_table.txt"
     shell: """
            {qiime1env}/bin/beta_diversity.py -i {input.otu} -m bray_curtis,unweighted_unifrac -t {input.repset} -o {params.beta}
            """
            
 #generate the Principle Coordinate plot (PCoA) decompositions of the distance matrices
-rule pca:
-    input: bray="intermediates/OTU_SILVA/beta_div/bray_curtis_CSS_normalized_otu_table.txt",unifrac="intermediates/OTU_SILVA/beta_div/beta_div_coords_unifrac.txt"
-    output: bray="intermediates/OTU_SILVA/beta_div/beta_div_coords_bray.txt", unifrac="intermediates/OTU_SILVA/beta_div/beta_div_coords_unifrac.txt"
+rule qiimepca:
+    input: bray="intermediates/OTU_SILVA_CLOSED/beta_div/bray_curtis_CSS_normalized_otu_table.txt",unifrac="intermediates/OTU_SILVA_CLOSED/beta_div/beta_div_coords_unifrac.txt"
+    output: bray="intermediates/OTU_SILVA_CLOSED/beta_div/beta_div_coords_bray.txt", unifrac="intermediates/OTU_SILVA_CLOSED/beta_div/beta_div_coords_unifrac.txt"
     shell:
             """
             {qiime1env}/bin/principal_coordinates.py -i {input.bray} -o {output.bray}
             {qiime1env}/bin/principal_coordinates.py -i {input.unifrac} -o {output.unifrac}
             """
 
-
+phyloseqpca
+    input: 
+    output:
+    run: R("knitr::knit('phyloseq.Rmd')")
 #mamba install r-vegan
 #get pvalues for 
 rule comparisons:
-  input: otu="intermediates/OTU_SILVA/beta_div/unweighted_unifrac_CSS_normalized_otu_table.txt",mapfile="mapfile.txt"
-  output: term="intermediates/OTU_SILVA/beta_div/adonis_term",type="intermediates/OTU_SILVA/beta_div/adonis_type"
+  input: otu="intermediates/OTU_SILVA_CLOSED/beta_div/unweighted_unifrac_CSS_normalized_otu_table.txt",mapfile="mapfile.txt"
+  output: term="intermediates/OTU_SILVA_CLOSED/beta_div/adonis_term",type="intermediates/OTU_SILVA_CLOSED/beta_div/adonis_type"
   shell: """
-         {qiime1env}/bin/compare_categories.py --method adonis -i {input.otu} -m {input.mapfile} -c Case_Control -o intermediates/OTU_SILVA/beta_div/adonis_term -n 999
-         {qiime1env}/bin/compare_categories.py --method adonis -i {input.otu} -m {input.mapfile} -c Type         -o intermediates/OTU_SILVA/beta_div/adonis_type -n 999
-         {qiime1env}/bin/compare_categories.py --method adonis -i {input.otu} -m {input.mapfile} -c Delivery     -o intermediates/OTU_SILVA/beta_div/adonis_delivery -n 999
+         {qiime1env}/bin/compare_categories.py --method adonis -i {input.otu} -m {input.mapfile} -c Case_Control -o intermediates/OTU_SILVA_CLOSED/beta_div/adonis_term -n 999
+         {qiime1env}/bin/compare_categories.py --method adonis -i {input.otu} -m {input.mapfile} -c Type         -o intermediates/OTU_SILVA_CLOSED/beta_div/adonis_type -n 999
+         {qiime1env}/bin/compare_categories.py --method adonis -i {input.otu} -m {input.mapfile} -c Delivery     -o intermediates/OTU_SILVA_CLOSED/beta_div/adonis_delivery -n 999
        """
 
 #emacs /home/jnl47/miniconda3/envs/qiime1/lib/python2.7/site-packages/qiime-1.9.1-py2.7.egg/qiime/make_2d_plots.py
 #change axisbg to facecolor to work with matplotlib==2.2.5
 rule twodplots:
-  input: bray="intermediates/OTU_SILVA/beta_div/beta_div_coords_bray.txt", unifrac="intermediates/OTU_SILVA/beta_div/beta_div_coords_unifrac.txt", mapfile="mapfile.txt"
-  output: bray="intermediates/OTU_SILVA/beta_div/brayPCoA/beta_div_coords_bray_2D_PCoA_plots.html", unifrac="intermediates/OTU_SILVA/beta_div/unifracPCoA/beta_div_coords_unifrac_2D_PCoA_plots.html"
+  input: bray="intermediates/OTU_SILVA_CLOSED/beta_div/beta_div_coords_bray.txt", unifrac="intermediates/OTU_SILVA_CLOSED/beta_div/beta_div_coords_unifrac.txt", mapfile="mapfile.txt"
+  output: bray="intermediates/OTU_SILVA_CLOSED/beta_div/brayPCoA/beta_div_coords_bray_2D_PCoA_plots.html", unifrac="intermediates/OTU_SILVA_CLOSED/beta_div/unifracPCoA/beta_div_coords_unifrac_2D_PCoA_plots.html"
   shell:
     """
-    {qiime1env}/bin/make_2d_plots.py -i {input.unifrac} -m {input.mapfile} -o intermediates/OTU_SILVA/beta_div/unifracPCoA
-    {qiime1env}/bin/make_2d_plots.py -i {input.bray} -m {input.mapfile} -o intermediates/OTU_SILVA/beta_div/brayPCoA
+    {qiime1env}/bin/make_2d_plots.py -i {input.unifrac} -m {input.mapfile} -o intermediates/OTU_SILVA_CLOSED/beta_div/unifracPCoA
+    {qiime1env}/bin/make_2d_plots.py -i {input.bray} -m {input.mapfile} -o intermediates/OTU_SILVA_CLOSED/beta_div/brayPCoA
     """
 
 # Metagenomic

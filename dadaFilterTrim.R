@@ -69,3 +69,6 @@ names(filtRs) <- sample.names
 out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(240,160),
                      maxN=0, maxEE=c(2,2), truncQ=2, rm.phix=TRUE,
                      compress=TRUE, multithread=TRUE)
+
+out$sample<-sample.names
+
