@@ -19,7 +19,7 @@ library("biomformat")
 #could also have chosen intermediates/OTU_SILVA/CSS_normalized_otu_table.biom
 #./SILVA_119_QIIME_release/97_FastTree_trees/Silva_119_rep_set97_aligned_16S_only_pfiltered.tre
 
-```{r process}
+```{r renametaxalevels}
 ps<-import_biom(BIOMfilename=biom,treefilename = tree)
 #"intermediates/OTU_SILVA_CLOSED/rep_set.tre")
 #"intermediates/OTU_SILVA_CLOSED/otu_table_mc2_w_tax.biom"
@@ -28,7 +28,9 @@ data(GlobalPatterns)
 t <- data.frame(tax_table(ps))
 colnames(t) <- rank_names(GlobalPatterns)
 tax_table(ps) <- tax_table(as.matrix(t))
+```
 
+```{r process}
 #should we use this?
 ps.log <- transform_sample_counts(ps, function(x) log(1 + x))
 

@@ -5,9 +5,9 @@ library(stringr)
 
 read.table("metadata/SRP141397.metadata",sep="\t",header = TRUE) %>%
   dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(full1=paste0(paste("raw",study_accession,experiment_accession,run_accession,sep="/"),"_1.fastq")) %>%
-  dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(full2=paste0(paste("raw",study_accession,experiment_accession,run_accession,sep="/"),"_2.fastq")) %>%
-  dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(pair1=paste0(paste("intermediates","fastq",run_accession,sep="/"),"_1.fastq.gz")) %>%
-  dplyr::filter(str_detect(experiment_title,'16S')) %>% dplyr::mutate(pair2=paste0(paste("intermediates","fastq",run_accession,sep="/"),"_2.fastq.gz"))->
+  dplyr::mutate(full2=paste0(paste("raw",study_accession,experiment_accession,run_accession,sep="/"),"_2.fastq")) %>%
+  dplyr::mutate(pair1=paste0(paste("intermediates","fastq",run_accession,sep="/"),"_1.fastq.gz")) %>%
+  dplyr::mutate(pair2=paste0(paste("intermediates","fastq",run_accession,sep="/"),"_2.fastq.gz"))->
   sra_metadata
 
 sapply(sra_metadata$pair1,function(x){assert_that(file.exists(x))})

@@ -66,46 +66,65 @@ rule combine:
            for f in intermediates/qiime_ready/*.fa; do cat $f | perl -e 'while(<>){{$lines.=$_;/>/ && $cnt++;}}if($cnt>=100){{print $lines;}}' >> {output}; done
            """
 
+##### qiime
+useOpen=False
+if useOpen:
+  qiimeoutdir="intermediates/OTU_SILVA_OPEN"
+  otutree="intermediates/OTU_SILVA_OPEN/rep_set.tre"
+  taxonomy="intermediates/OTU_SILVA_OPEN/uclust_assigned_taxonomy/rep_set_tax_assignments.txt"
+  biom="intermediates/OTU_SILVA_OPEN/otu_table_mc2_w_tax.biom"
+  program="pick_open_reference_otus.py"
+  phylumfile="otu_table_mc2_w_tax_L2.txt"
+else:
+  qiimeoutdir="intermediates/OTU_SILVA_CLOSED"
+  otutree="SILVA_119_QIIME_release/97_FastTree_trees/Silva_119_rep_set97_aligned_16S_only_pfiltered.tre"
+  taxonomy="SILVA_119_QIIME_release/taxonomy/97/taxonomy_97_7_levels.txt"
+  biom="intermediates/OTU_SILVA_CLOSED/otu_table.biom"
+  program="pick_closed_reference_otus.py"
+  phylumfile="otu_table_L2.txt"
+
 # 2 hours
 # choice of UCLUST or usearch61
-rule OTUopen:
-    input: "intermediates/seqs.fna"
-    output: "intermediates/OTU_SILVA_OPEN/otu_table_mc2_w_tax.biom", "intermediates/OTU_SILVA_OPEN/rep_set.tre"
-    shell: """
-           export PATH={qiime1env}/bin/:$PATH
-           {qiime1env}/bin/pick_open_reference_otus.py   -i {input} -r SILVA_119_QIIME_release/rep_set/97/Silva_119_rep_set97.fna -o OTU_SILVA_OPEN  -s 0.1 -m usearch61 -p otu_SILVA_settings.txt
-           """
+# rule OTUopen:
+#     input: "intermediates/seqs.fna"
+#     output: biom, otutree
+#     shell: """
+#            export PATH={qiime1env}/bin/:$PATH
+#            {qiime1env}/bin/pick_open_reference_otus.py   -i {input} -r SILVA_119_QIIME_release/rep_set/97/Silva_119_rep_set97.fna -o {qiimeoutdir}  -s 0.1 -m usearch61 -p otu_SILVA_settings.txt
+#            """
 
-#23:01:22
-rule OTUclosed:
+#35 minutes
+rule makebiom:
     input: "intermediates/seqs.fna"
-    output: "intermediates/OTU_SILVA_CLOSED/otu_table_mc2_w_tax.biom", "intermediates/OTU_SILVA_CLOSED/rep_set.tre"
+    output: biom
     shell: """
            export PATH={qiime1env}/bin/:$PATH
-           {qiime1env}/bin/pick_closed_reference_otus.py -i {input} -r SILVA_119_QIIME_release/rep_set/97/Silva_119_rep_set97.fna -o OTU_SILVA_CLOSED -p otu_SILVA_settings.txt
+           {qiime1env}/bin/pick_closed_reference_otus.py -f -i {input} -r SILVA_119_QIIME_release/rep_set/97/Silva_119_rep_set97.fna -o {qiimeoutdir} -p otu_SILVA_settings.txt -t {taxonomy}
            """
 
 rule humanreadableotutable:
-    input: "intermediates/OTU_SILVA_CLOSED/otu_table_mc2_w_tax.biom"
-    output: "intermediates/OTU_SILVA_CLOSED/otu_table.txt"
+    input: biom
+    output: qiimeoutdir+'/otu_table.txt'
     shell: """
+           export PATH={qiime1env}/bin/:$PATH
            {qiime1env}/bin/biom convert -i {input} -o {output} --to-tsv --header-key taxonomy
            """
 
 rule phylumtable:
-    input: "intermediates/OTU_SILVA_CLOSED/otu_table_mc2_w_tax.biom"
-    output: "intermediates/OTU_SILVA_CLOSED/phylum/otu_table_mc2_w_tax_L2.txt"
+    input: biom
+    output: qiimeoutdir+"/phylum/"+phylumfile
     shell: 
       """
-      {qiime1env}/bin/summarize_taxa.py -i {input} -L 2 -o intermediates/OTU_SILVA_CLOSED/phylum/
+      {qiime1env}/bin/summarize_taxa.py -i {input} -L 2 -o {qiimeoutdir}/phylum/
       """
 
 #conda install  r-optparse bioconductor-metagenomeseq  r-biom r-plyr r-RJSONIO bioconductor-rhdf5 bioconductor-biomformat
 #cd dependencies && git clone git@github.com:joey711/biom.git
 rule normalize:
-    input: "intermediates/OTU_SILVA_CLOSED/otu_table_mc2_w_tax.biom"
-    output: "intermediates/OTU_SILVA_CLOSED/CSS_normalized_otu_table.biom"
+    input: biom
+    output: qiimeoutdir+"/CSS_normalized_otu_table.biom"
     shell: """
+           export PATH={qiime1env}/bin/:$PATH
            {qiime1env}/bin/normalize_table.py -i {input} -a CSS -o {output}
            """
            
@@ -121,8 +140,8 @@ rule diversity:
            
 #generate the Principle Coordinate plot (PCoA) decompositions of the distance matrices
 rule qiimepca:
-    input: bray="intermediates/OTU_SILVA_CLOSED/beta_div/bray_curtis_CSS_normalized_otu_table.txt",unifrac="intermediates/OTU_SILVA_CLOSED/beta_div/beta_div_coords_unifrac.txt"
-    output: bray="intermediates/OTU_SILVA_CLOSED/beta_div/beta_div_coords_bray.txt", unifrac="intermediates/OTU_SILVA_CLOSED/beta_div/beta_div_coords_unifrac.txt"
+    input: bray=qiimeoutdir+"/beta_div/bray_curtis_CSS_normalized_otu_table.txt",unifrac=qiimeoutdir+"/beta_div/beta_div_coords_unifrac.txt"
+    output: bray=qiimeoutdir+"/beta_div/beta_div_coords_bray.txt", unifrac=qiimeoutdir+"/beta_div/beta_div_coords_unifrac.txt"
     shell:
             """
             {qiime1env}/bin/principal_coordinates.py -i {input.bray} -o {output.bray}
@@ -130,10 +149,12 @@ rule qiimepca:
             """
 
 rule phyloseqpca:
-    input: biom="intermediates/OTU_SILVA_CLOSED/otu_table_mc2_w_tax.biom",tree = "intermediates/OTU_SILVA_CLOSED/rep_set.tre"
+    input: biom=biom,tree = otutree
     output: "phyloseq.html"
-    run:  
-        R("biom<-'{biom}';tree<-'{tree}';knitr::knit('phyloseq.Rmd',output='{output}')")
+    shell:
+        """
+        echo "biom<-'{input.biom}';tree<-'{input.tree}';rmarkdown::render('phyloseq.Rmd')" |  R --quiet --no-save
+        """
 
 #mamba install r-vegan
 #get pvalues for 
@@ -165,7 +186,24 @@ rule twodplots:
 # To further filter our data of problematic, low-complexity reads, we used Komplexity to remove low-complexity reads that remained after host decontamination [32].
 # As a final filtering step, we excluded reads that were classified by Kraken as Chordata, Arthropoda, and Apicomplexa. Sequencing reads were aligned to target genomes using BWA-MEM [49],
 # and genome coverage was calculated using BEDtools [51].
+import pandas as pd
+df=pd.read_csv("metadata/SRP141397.metadata",sep="\t")
+mgxdf=df[df['library_strategy'].str.contains("WGS")]
+mgxdf=mgxdf.assign(pair1='intermediates/mgx/'+mgxdf['run_accession']+'_1.fastq.gz',pair2='intermediates/mgx/'+mgxdf['run_accession']+'_2.fastq.gz')
+mgx=mgxdf['pair1'].values.tolist()+mgxdf['pair2'].values.tolist()
 
+#isolate the metagenomics files (from the 16s)
+rule movemgx:
+    input: "intermediates/fastq/{file}"
+    output: "intermediates/mgx/{file}"
+    shell:
+      """
+      mkdir -p intermediates/mgx/
+      mv {input} {output}
+      """
+
+rule mgx:
+    input: mgx
 
 # rule filterMetaReads:
 #     input: project.getMetaReads()

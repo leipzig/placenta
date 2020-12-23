@@ -8,6 +8,20 @@ LABEL org.opencontainers.image.title = "Leiby Placenta Reproduction"
 LABEL org.opencontainers.image.description = "This generates the Leiby placenta paper analysis reverse engineered from https://doi.org/10.1186/s40168-018-0575-4"
 LABEL org.opencontainers.image.url = "https://github.com/leipzig/placenta"
 
+WORKDIR "/placenta"
+COPY Snakefile .
+COPY config.yaml.template config.yaml
+COPY dadaFilterTrim.R .
+COPY runDada.R .
+COPY phyloseq.Rmd .
+COPY dadaFilterTrim.R .
+COPY utils utils
+COPY metadata metadata
+COPY dependencies dependencies
+#https://github.com/biocore/qiime/archive/1.9.1.tar.gz
+COPY 1.9.1.tar.gz .
+
+
 RUN apt-get update && apt-get install -y build-essential 
 
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
@@ -67,32 +81,37 @@ RUN pip install biom-format==2.1.4
 #this had trouble from conda so we install it from source later
 #RUN mamba install -y r-biom
 
-
-WORKDIR "/placenta"
-#https://github.com/biocore/qiime/archive/1.9.1.tar.gz
-COPY 1.9.1.tar.gz .
 RUN gunzip 1.9.1.tar.gz && tar -xvf 1.9.1.tar
 # make qiime work with matplotlib 1.4.3
 RUN perl -p -i -e  's/axisbg/facecolor/' qiime-1.9.1/tests/test_make_2d_plots.py 
 RUN perl -p -i -e  's/axisbg/facecolor/' qiime-1.9.1/scripts/make_2d_plots.py 
 RUN perl -p -i -e  's/axisbg/facecolor/' qiime-1.9.1/qiime/make_2d_plots.py
 
-
-COPY Snakefile .
-COPY config.yaml.template config.yaml
-COPY runDada.R .
-COPY dadaFilterTrim.R .
-COPY utils utils
-COPY metadata metadata
-COPY dependencies dependencies
 RUN R CMD INSTALL dependencies/biom
-
 RUN cd qiime-1.9.1 && cp ../dependencies/uclustq1.2.22_i86linux64 ./scripts/uclust && /opt/conda/envs/qiime1env/bin/python setup.py install
 RUN rm 1.9.1.tar
+
+
+### sunbeam
+SHELL ["/bin/bash", "-c"]
+SHELL ["conda", "run", "-n", "placenta", "/bin/bash", "-c"]
+RUN conda config --add channels defaults
+RUN conda config --add channels bioconda
+RUN conda config --add channels conda-forge
+RUN conda config --add channels eclarke
+#important not to use a archive here because of weird scm rules
+RUN git clone --depth 1 --branch v1.3.0 https://github.com/sunbeam-labs/sunbeam.git
+RUN conda init bash && conda create -y --name sunbeam python=3.6
+RUN conda install -y mamba
+RUN mamba install -y snakemake pysam ruamel.yaml biopython trimmomatic fastqc blast kraken kraken-biom vsearch jellyfish \
+                     cutadapt bwa pandas megahit prodigal setuptools_scm komplexity rust-bio-tools semantic_version
+RUN cd sunbeam && pip install .
+
+
 
 RUN chown -R root:staff /placenta
 RUN chmod 775 /placenta
 RUN echo "setwd('/placenta')" > /home/rstudio/.Rprofile
 
-ENTRYPOINT [ "/usr/bin/tini", "--" ]
-CMD ["conda", "run", "-n", "placenta", "/bin/bash", "-c","snakemake --cores all"]
+#ENTRYPOINT [ "/usr/bin/tini", "--" ]
+#CMD ["conda", "run", "-n", "placenta", "/bin/bash", "-c","snakemake --cores all"]
