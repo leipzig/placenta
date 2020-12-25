@@ -91,6 +91,8 @@ RUN R CMD INSTALL dependencies/biom
 RUN cd qiime-1.9.1 && cp ../dependencies/uclustq1.2.22_i86linux64 ./scripts/uclust && /opt/conda/envs/qiime1env/bin/python setup.py install
 RUN rm 1.9.1.tar
 
+RUN unzip dependencies/Silva_119_release.zip -d .
+RUN mv Silva119_release SILVA_119_QIIME_release
 
 ### sunbeam
 SHELL ["/bin/bash", "-c"]

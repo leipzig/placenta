@@ -20,6 +20,9 @@ library("biomformat")
 #./SILVA_119_QIIME_release/97_FastTree_trees/Silva_119_rep_set97_aligned_16S_only_pfiltered.tre
 
 ```{r renametaxalevels}
+if(!exists("biom")){biom<-"intermediates/OTU_SILVA_CLOSED/otu_table.biom"}
+if(!exists("tree")){tree<-"SILVA_119_QIIME_release/97_FastTree_trees/Silva_119_rep_set97_aligned_16S_only_pfiltered.tre"}
+
 ps<-import_biom(BIOMfilename=biom,treefilename = tree)
 #"intermediates/OTU_SILVA_CLOSED/rep_set.tre")
 #"intermediates/OTU_SILVA_CLOSED/otu_table_mc2_w_tax.biom"
