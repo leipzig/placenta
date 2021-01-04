@@ -153,7 +153,7 @@ rule phyloseqpca:
     output: "phyloseq.html"
     shell:
         """
-        echo "biom<-'{input.biom}';tree<-'{input.tree}';rmarkdown::render('phyloseq.Rmd')" |  R --quiet --no-save
+        echo "biomfile<-'{input.biom}';treefile<-'{input.tree}';rmarkdown::render('phyloseq.Rmd')" |  R --quiet --no-save
         """
 
 #mamba install r-vegan
@@ -206,20 +206,13 @@ rule mgx:
     input: mgx
 
 
-# rule filterMetaReads:
-#     input: project.getMetaReads()
-#     output: project.getFilteredMetaReads()
-#     shell: """
-#            echo "Komplexity"
-#            """
-# 
-# rule trimMetaReads:
-#     input: project.getMetaReads()
-#     
-# rule classifyMetaReads:
-#     input: project.getFilteredMetaReads()
-#     output: "kraken"
-#     shell: """
-#           echo "kraken""
-#           """
+git clone https://github.com/zhaoc1/sunbeam_databases
+#altered ./build_krakendb
+cd sunbeam_databases
+mkdir nt_20180816
+#2 hours?
+update_blastdb.pl --passive --decompress nt
+cd sunbeam_databases 
+#4 hours
+./build_krakendb.sh
 

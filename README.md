@@ -85,6 +85,19 @@ gunzip 1.9.1.tar.gz && tar -xvf 1.9.1.tar
 cd qiime-1.9.1 && python setup.py install
 ```
 
+Kraken index stuff
+```
+mamba install kraken=1.1-0 #1.0 has a bug related to nucl_est.accession2taxid.gz
+git clone https://github.com/zhaoc1/sunbeam_databases
+#altered ./build_krakendb
+cd sunbeam_databases
+mkdir nt_20180816
+#2 hours?
+update_blastdb.pl --passive --decompress nt
+cd sunbeam_databases 
+#4 hours
+./build_krakendb.sh
+```
 
 ```
 conda activate placenta
