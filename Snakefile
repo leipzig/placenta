@@ -206,13 +206,5 @@ rule mgx:
     input: mgx
 
 
-git clone https://github.com/zhaoc1/sunbeam_databases
-#altered ./build_krakendb
-cd sunbeam_databases
-mkdir nt_20180816
-#2 hours?
-update_blastdb.pl --passive --decompress nt
-cd sunbeam_databases 
-#4 hours
-./build_krakendb.sh
+
 
