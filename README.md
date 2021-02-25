@@ -21,7 +21,7 @@ Possible major refactors:
 
 # Data availability
 Raw and intermediate data is available here at s3://placenta
-
+```
 ├── intermediates
 │   ├── OTU_SILVA
 │   │   ├── CSS_normalized_otu_table.biom
@@ -196,3 +196,4 @@ Raw and intermediate data is available here at s3://placenta
             ├── manifest.txt
             ├── prelim_map.txt
             └── rsync.err
+```
