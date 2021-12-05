@@ -197,3 +197,8 @@ Raw and intermediate data is available here at s3://placenta
             ├── prelim_map.txt
             └── rsync.err
 ```
+
+### Tests of Robustness
+- https://github.com/hmontenegro/placenta
+- https://github.com/barrantesisrael/repromicrobiome2021
+- https://github.com/leipzig/harishk
